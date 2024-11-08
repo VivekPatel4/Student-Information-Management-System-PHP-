@@ -1,0 +1,277 @@
+<?php
+session_start();
+error_reporting(0);
+date_default_timezone_set('Asia/Kolkata');
+include('../includes/dbconn.php');
+if(strlen($_SESSION['alogin']) == 0) {   
+    header('location:index.php');
+} else {
+    $currentDate = date("Y-m-d");
+
+    // Fetch employees who are on leave today
+    $sqlLeave = "SELECT tblemployees.id, 
+                        tblemployees.photo, 
+                        tblemployees.FirstName, 
+                        tblemployees.LastName, 
+                        tblemployees.EmpId, 
+                        tblleaves.LeaveType, 
+                        tblleaves.FromDate, 
+                        tblleaves.ToDate 
+                FROM tblleaves 
+                JOIN tblemployees ON tblleaves.empid = tblemployees.id 
+                WHERE :currentDate BETWEEN tblleaves.FromDate AND tblleaves.ToDate 
+                    AND tblleaves.status = 1 
+                    AND NOT EXISTS (
+                        SELECT 1 FROM tblleaves AS l2 
+                        WHERE l2.empid = tblleaves.empid 
+                            AND l2.status = 1 
+                            AND :currentDate BETWEEN l2.FromDate AND l2.ToDate 
+                            AND l2.id > tblleaves.id
+                    )";
+    $cnt=1;
+    $queryLeave = $dbh->prepare($sqlLeave);
+    $queryLeave->bindParam(':currentDate', $currentDate, PDO::PARAM_STR);
+    $queryLeave->execute();
+    $leaveResults = $queryLeave->fetchAll(PDO::FETCH_OBJ);
+    
+    // Fetch employees who are not on leave today
+    $sqlNoLeave = "SELECT tblemployees.id, 
+                  tblemployees.photo, 
+                  tblemployees.FirstName, 
+                  tblemployees.LastName, 
+                  tblemployees.EmpId 
+           FROM tblemployees 
+           LEFT JOIN tblleaves ON tblemployees.id = tblleaves.empid 
+               AND :currentDate BETWEEN tblleaves.FromDate AND tblleaves.ToDate 
+               AND tblleaves.status = 1 
+           WHERE (:currentDate NOT BETWEEN tblleaves.FromDate AND tblleaves.ToDate OR tblleaves.id IS NULL)";
+    $cnt1=1;
+    $queryNoLeave = $dbh->prepare($sqlNoLeave);
+    $queryNoLeave->bindParam(':currentDate', $currentDate, PDO::PARAM_STR);
+    $queryNoLeave->execute();
+    $noLeaveResults = $queryNoLeave->fetchAll(PDO::FETCH_OBJ);
+    
+
+?>
+<!doctype html>
+<html class="no-js" lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="x-ua-compatible" content="ie=edge">
+    <title>Admin Panel - Student Leave</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="shortcut icon" type="image/png" href="../assets/images/icon/favicon.ico">
+    <link rel="stylesheet" href="../assets/css/bootstrap.min.css">
+    <link rel="stylesheet" href="../assets/css/font-awesome.min.css">
+    <link rel="stylesheet" href="../assets/css/themify-icons.css">
+    <link rel="stylesheet" href="../assets/css/metisMenu.css">
+    <link rel="stylesheet" href="../assets/css/owl.carousel.min.css">
+    <link rel="stylesheet" href="../assets/css/slicknav.min.css">
+    <!-- amchart css -->
+    <link rel="stylesheet" href="https://www.amcharts.com/lib/3/plugins/export/export.css" type="text/css" media="all" />
+    <!-- Start datatable css -->
+    <link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/1.10.19/css/jquery.dataTables.css">
+    <link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/1.10.18/css/dataTables.bootstrap4.min.css">
+    <link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/responsive/2.2.3/css/responsive.bootstrap.min.css">
+    <link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/responsive/2.2.3/css/responsive.jqueryui.min.css">
+    <!-- others css -->
+    <link rel="stylesheet" href="../assets/css/typography.css">
+    <link rel="stylesheet" href="../assets/css/default-css.css">
+    <link rel="stylesheet" href="../assets/css/styles.css">
+    <link rel="stylesheet" href="../assets/css/responsive.css">
+    <!-- modernizr css -->
+    <script src="../assets/js/vendor/modernizr-2.8.3.min.js"></script>
+</head>
+
+<body>
+    <!-- preloader area start -->
+    <div id="preloader">
+        <div class="loader"></div>
+    </div>
+    <!-- preloader area end -->
+    
+    <div class="page-container">
+        <!-- sidebar menu area start -->
+        <div class="sidebar-menu">
+            <div class="sidebar-header">
+                <div class="logo">
+                    <a href="dashboard.php"><img src="../assets/images/icon/vivek.png" alt="logo"></a>
+                </div>
+            </div>
+            <div class="main-menu">
+                <div class="menu-inner">
+                    <?php
+                        $page='leave1';
+                        include '../includes/admin-sidebar.php';
+                    ?>
+                </div>
+            </div>
+        </div>
+        <!-- sidebar menu area end -->
+        <!-- main content area start -->
+        <div class="main-content">
+            <!-- header area start -->
+            <div class="header-area">
+                <div class="row align-items-center">
+                    <!-- nav and search button -->
+                    <div class="col-md-6 col-sm-8 clearfix">
+                        <div class="nav-btn pull-left">
+                            <span></span>
+                            <span></span>
+                            <span></span>
+                        </div>
+                        
+                    </div>
+                    <!-- profile info & task notification -->
+                    <div class="col-md-6 col-sm-4 clearfix">
+                        <ul class="notification-area pull-right">
+                            <li id="full-view"><i class="ti-fullscreen"></i></li>
+                            <li id="full-view-exit"><i class="ti-zoom-out"></i></li>
+
+                            <!-- Notification bell -->
+                            <?php include '../includes/admin-notification.php'?>
+
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            <!-- header area end -->
+            <!-- page title area start -->
+            <div class="page-title-area">
+                <div class="row align-items-center">
+                    <div class="col-sm-6">
+                        <div class="breadcrumbs-area clearfix">
+                            <h4 class="page-title pull-left">Leaves History</h4>
+                            <ul class="breadcrumbs pull-left">
+                                <li><a href="dashboard.php">Home</a></li>
+                                <li><span>History</span></li>
+                                
+                            </ul>
+                        </div>
+                    </div>
+                    
+                    <div class="col-sm-6 clearfix">
+                        <div class="user-profile pull-right">
+                            <img class="avatar user-thumb" src="../assets/images/admin.png" alt="avatar">
+                            <h4 class="user-name dropdown-toggle" data-toggle="dropdown">ADMIN <i class="fa fa-angle-down"></i></h4>
+                            <div class="dropdown-menu">
+                                <a class="dropdown-item" href="logout.php">Log Out</a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- page title area end -->
+            <div class="main-content-inner">
+    <!-- row area start -->
+    <div class="row">
+        <!-- trading history area start -->
+        <div class="col-12 mt-5">
+            <div class="card">
+                <?php if($error){ ?>
+                    <div class="alert alert-danger alert-dismissible fade show">
+                        <strong>Info: </strong><?php echo htmlentities($error); ?>
+                        <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+                            <span aria-hidden="true">&times;</span>
+                        </button>
+                    </div>
+                <?php } elseif($msg){ ?>
+                    <div class="alert alert-success alert-dismissible fade show">
+                        <strong>Info: </strong><?php echo htmlentities($msg); ?> 
+                        <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+                            <span aria-hidden="true">&times;</span>
+                        </button>
+                    </div>
+                <?php } ?>
+                <!-- Display students on leave -->
+                <h2>Students on Leave</h2>
+                <div class="card-body">
+                    <div class="single-table">
+                        <div class="table-responsive">
+                            <table class="table table-hover table-striped table-bordered progress-table text-center">
+                                <thead class="text-uppercase">
+                                    <tr>
+                                        <th>S.N</th>
+                                        <th>Student photo</th>
+                                        <th>Student ID</th>
+                                        <th>Student Name</th>
+                                        <th>Leave Type</th>
+                                        <th>From Date</th>
+                                        <th>To Date</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php foreach ($leaveResults as $result) : ?>
+                                        <tr>
+                                            <td><b><?php echo htmlentities($cnt);?></b></td>
+                                            <td class="align-middle"><a href="#"><img src="studentimages/<?php echo htmlentities($result->photo);?>" width="90" height="90"> </a></td>
+                                            <td><?php echo htmlentities($result->EmpId); ?></td>
+                                            <td><?php echo htmlentities($result->FirstName . " " . $result->LastName); ?></td>
+                                            <td><?php echo htmlentities($result->LeaveType); ?></td>
+                                            <td><?php echo htmlentities($result->FromDate); ?></td>
+                                            <td><?php echo htmlentities($result->ToDate); ?></td>
+                                        </tr>
+                                        <?php $cnt++;?>
+                                    <?php endforeach; ?>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                <!-- Display students not on leave -->
+              
+            </div>
+        </div>
+        <!-- trading history area end -->
+    </div>
+    <!-- row area end -->
+</div>
+<?php include '../includes/footer.php' ?>
+<!-- footer area end-->
+</div>
+<!-- main content area end -->
+
+        
+        
+
+    </div>
+    <!-- jquery latest version -->
+    <script src="../assets/js/vendor/jquery-2.2.4.min.js"></script>
+    <!-- bootstrap 4 js -->
+    <script src="../assets/js/popper.min.js"></script>
+    <script src="../assets/js/bootstrap.min.js"></script>
+    <script src="../assets/js/owl.carousel.min.js"></script>
+    <script src="../assets/js/metisMenu.min.js"></script>
+    <script src="../assets/js/jquery.slimscroll.min.js"></script>
+    <script src="../assets/js/jquery.slicknav.min.js"></script>
+
+    <!-- start chart js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.7.2/Chart.min.js"></script>
+    <!-- start highcharts js -->
+    <script src="https://code.highcharts.com/highcharts.js"></script>
+    <!-- start zingchart js -->
+    <script src="https://cdn.zingchart.com/zingchart.min.js"></script>
+    <script>
+    zingchart.MODULESDIR = "https://cdn.zingchart.com/modules/";
+    ZC.LICENSE = ["569d52cefae586f634c54f86dc99e6a9", "ee6b7db5b51705a13dc2339db3edaf6d"];
+    </script>
+    <!-- all line chart activation -->
+    <script src="assets/js/line-chart.js"></script>
+    <!-- all pie chart -->
+    <script src="assets/js/pie-chart.js"></script>
+
+        <!-- Start datatable js -->
+        <script src="https://cdn.datatables.net/1.10.19/js/jquery.dataTables.js"></script>
+    <script src="https://cdn.datatables.net/1.10.18/js/jquery.dataTables.min.js"></script>
+    <script src="https://cdn.datatables.net/1.10.18/js/dataTables.bootstrap4.min.js"></script>
+    <script src="https://cdn.datatables.net/responsive/2.2.3/js/dataTables.responsive.min.js"></script>
+    <script src="https://cdn.datatables.net/responsive/2.2.3/js/responsive.bootstrap.min.js"></script>
+    
+    <!-- others plugins -->
+    <script src="../assets/js/plugins.js"></script>
+    <script src="../assets/js/scripts.js"></script>
+</body>
+
+</html>
+<?php } ?>
